@@ -1,11 +1,12 @@
 import React from 'react';
-import { Menu, Plus, UserCheck, Shield } from 'lucide-react';
+import { Menu, Plus, UserCheck, Shield, BookOpen } from 'lucide-react';
 import { UserRole } from '../types';
 
 interface HeaderProps {
   onOpenMobileSidebar: () => void;
   currentTitle: string;
   onQuickNewSale: () => void;
+  onOpenGuide: () => void;
   currentUserRole: UserRole;
   onRoleChange: (role: UserRole) => void;
 }
@@ -14,6 +15,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenMobileSidebar,
   currentTitle,
   onQuickNewSale,
+  onOpenGuide,
   currentUserRole,
   onRoleChange,
 }) => {
@@ -37,7 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
         <div>
           <h2 className="text-base lg:text-lg font-bold text-slate-900 tracking-tight">{currentTitle}</h2>
-          <p className="text-[11px] text-slate-500 hidden sm:block">Dépôt Central · Gestion commerciale et des stocks</p>
+          <p className="text-[11px] text-slate-500 hidden sm:block">CIMENPRO · Gestion commerciale et des stocks</p>
         </div>
       </div>
 
@@ -50,6 +52,16 @@ export const Header: React.FC<HeaderProps> = ({
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">Nouvelle Vente</span>
           <span className="sm:hidden">Vente</span>
+        </button>
+
+        {/* Manuel d'utilisation Quick Link */}
+        <button
+          onClick={onOpenGuide}
+          className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 rounded-lg transition-colors shrink-0 border border-slate-200/80"
+          title="Consulter le Manuel d'Utilisation CIMENPRO"
+        >
+          <BookOpen className="w-3.5 h-3.5 text-orange-600" />
+          <span className="hidden sm:inline">Manuel</span>
         </button>
 
         {/* User Role Switcher for Testing & Production Permissions */}

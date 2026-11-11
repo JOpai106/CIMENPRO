@@ -5,6 +5,7 @@ import { formatFCFA, formatBags, formatDateFr, getQuoteStatusLabel } from '../ut
 import { generateQuotationPDF } from '../utils/pdfGenerator';
 import { exportToCSV } from '../utils/exportUtils';
 import { api } from '../services/api';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 interface QuotationsViewProps {
   quotations: Quotation[];
@@ -13,6 +14,7 @@ interface QuotationsViewProps {
   settings: CompanySettings;
   onRefresh: () => void;
   canEdit: boolean;
+  isAdmin?: boolean;
 }
 
 export const QuotationsView: React.FC<QuotationsViewProps> = ({
@@ -22,9 +24,26 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
   settings,
   onRefresh,
   canEdit,
+  isAdmin = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [quoteToDelete, setQuoteToDelete] = useState<Quotation | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteQuote = async () => {
+    if (!quoteToDelete) return;
+    try {
+      setIsDeleting(true);
+      await api.deleteQuotation(quoteToDelete.id);
+      setQuoteToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression du devis');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Modal create
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -315,6 +334,15 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
                           >
                             <Printer className="w-3.5 h-3.5" />
                           </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => setQuoteToDelete(q)}
+                              title="Supprimer ce devis (Admin)"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -593,6 +621,17 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal (Admin Only) */}
+      <ConfirmDeleteModal
+        isOpen={!!quoteToDelete}
+        onClose={() => setQuoteToDelete(null)}
+        onConfirm={handleDeleteQuote}
+        title="Supprimer le devis"
+        itemDescription={quoteToDelete ? `${quoteToDelete.quote_number} - ${quoteToDelete.customer_name} (${formatFCFA(quoteToDelete.total_amount)})` : ''}
+        warningNote="La suppression de ce devis l'effacera de la base de données. Les devis n'impactent pas les stocks physiques. Réservé à l'administrateur."
+        isDeleting={isDeleting}
+      />
     </div>
   );
 };

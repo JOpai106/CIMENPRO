@@ -112,6 +112,21 @@ export const api = {
     return request<any>(`/reports?${q.toString()}`);
   },
 
+  // Admin Deletion APIs
+  deleteProduct: (id: string) => request<{ success: boolean; message: string }>(`/products/${id}`, { method: 'DELETE' }),
+  deleteUser: (id: string) => request<{ success: boolean; message: string }>(`/users/${id}`, { method: 'DELETE' }),
+  deleteSupplier: (id: string) => request<{ success: boolean; message: string }>(`/suppliers/${id}`, { method: 'DELETE' }),
+  deleteCustomer: (id: string) => request<{ success: boolean; message: string }>(`/customers/${id}`, { method: 'DELETE' }),
+  deletePurchase: (id: string) => request<{ success: boolean; message: string }>(`/purchases/${id}`, { method: 'DELETE' }),
+  deleteSale: (id: string) => request<{ success: boolean; message: string }>(`/sales/${id}`, { method: 'DELETE' }),
+  deleteDelivery: (id: string) => request<{ success: boolean; message: string }>(`/deliveries/${id}`, { method: 'DELETE' }),
+  deleteQuotation: (id: string) => request<{ success: boolean; message: string }>(`/quotations/${id}`, { method: 'DELETE' }),
+  deleteInvoice: (id: string) => request<{ success: boolean; message: string }>(`/invoices/${id}`, { method: 'DELETE' }),
+  deletePayment: (id: string) => request<{ success: boolean; message: string }>(`/payments/${id}`, { method: 'DELETE' }),
+  deleteExpense: (id: string) => request<{ success: boolean; message: string }>(`/expenses/${id}`, { method: 'DELETE' }),
+  deleteInventoryAdjustment: (id: string) => request<{ success: boolean; message: string }>(`/inventory/adjustments/${id}`, { method: 'DELETE' }),
+  deleteStockMovement: (id: string) => request<{ success: boolean; message: string }>(`/stock/movements/${id}`, { method: 'DELETE' }),
+
   // Audit & Demo Data
   getAuditLogs: () => request<AuditLog[]>('/audit-logs'),
   resetDemoData: () => request<{ success: boolean; message: string }>('/admin/reset-demo', { method: 'POST' }),

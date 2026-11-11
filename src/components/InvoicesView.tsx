@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { CreditCard, Search, Filter, Download, Printer, AlertTriangle, X, Ban, DollarSign } from 'lucide-react';
+import { CreditCard, Search, Filter, Download, Printer, AlertTriangle, X, Ban, DollarSign, Trash2 } from 'lucide-react';
 import { Invoice, CompanySettings } from '../types';
 import { formatFCFA, formatDateFr, getPaymentStatusLabel } from '../utils/formatters';
 import { generateInvoicePDF } from '../utils/pdfGenerator';
 import { exportToCSV } from '../utils/exportUtils';
 import { api } from '../services/api';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 interface InvoicesViewProps {
   invoices: Invoice[];
@@ -12,6 +13,7 @@ interface InvoicesViewProps {
   onRefresh: () => void;
   onPayInvoice: (invoice: Invoice) => void;
   canEdit: boolean;
+  isAdmin?: boolean;
 }
 
 export const InvoicesView: React.FC<InvoicesViewProps> = ({
@@ -20,9 +22,26 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   onRefresh,
   onPayInvoice,
   canEdit,
+  isAdmin = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('ALL');
+  const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteInvoice = async () => {
+    if (!invoiceToDelete) return;
+    try {
+      setIsDeleting(true);
+      await api.deleteInvoice(invoiceToDelete.id);
+      setInvoiceToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression de la facture');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Cancel modal
   const [cancellingInvoice, setCancellingInvoice] = useState<Invoice | null>(null);
@@ -244,6 +263,16 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                               <Ban className="w-3.5 h-3.5" />
                             </button>
                           )}
+
+                          {isAdmin && (
+                            <button
+                              onClick={() => setInvoiceToDelete(inv)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                              title="Supprimer cette facture (Admin)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -312,6 +341,17 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal (Admin Only) */}
+      <ConfirmDeleteModal
+        isOpen={!!invoiceToDelete}
+        onClose={() => setInvoiceToDelete(null)}
+        onConfirm={handleDeleteInvoice}
+        title="Supprimer la facture"
+        itemDescription={invoiceToDelete ? `${invoiceToDelete.invoice_number} - ${invoiceToDelete.customer_name} (${formatFCFA(invoiceToDelete.total_amount)})` : ''}
+        warningNote="La suppression de cette facture supprimera le document comptable et ses règlements associés. Réservé à l'administrateur."
+        isDeleting={isDeleting}
+      />
     </div>
   );
 };

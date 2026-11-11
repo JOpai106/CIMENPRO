@@ -16,6 +16,7 @@ import { InventoryView } from './components/InventoryView';
 import { ReportsView } from './components/ReportsView';
 import { UsersView } from './components/UsersView';
 import { SettingsView } from './components/SettingsView';
+import { UserGuideView } from './components/UserGuideView';
 
 import {
   Product,
@@ -175,8 +176,10 @@ export default function App() {
         return "Utilisateurs & Contrôle d'Accès (RBAC)";
       case 'settings':
         return "Paramètres de l'Entreprise & Données";
+      case 'guide':
+        return "Manuel d'Utilisation & Procédures CIMENPRO";
       default:
-        return 'Gestion Dépôt Ciment';
+        return 'CIMENPRO';
     }
   };
 
@@ -204,7 +207,7 @@ export default function App() {
           C
         </div>
         <div className="text-center">
-          <h1 className="text-lg font-bold">GESTION DÉPÔT CIMENT</h1>
+          <h1 className="text-lg font-bold">CIMENPRO</h1>
           <p className="text-xs text-slate-400 mt-1">Connexion à la base de données relationnelle...</p>
         </div>
       </div>
@@ -213,14 +216,14 @@ export default function App() {
 
   const currentSettings = settings || {
     id: 1,
-    company_name: 'DÉPÔT CENTRAL DE CIMENT DU BASSIN',
+    company_name: 'CIMENPRO',
     tagline: 'Vente en gros et détail de ciment certifié',
     logo_url: '',
     address: 'Avenue de l\'Indépendance',
     city: 'Brazzaville',
     country: 'République du Congo',
     phone: '+242 06 654 32 10',
-    email: 'contact@depotciment-congo.cg',
+    email: 'contact@cimenpro.cg',
     currency: 'FCFA',
     prefix_quote: 'DEV-',
     prefix_invoice: 'FAC-',
@@ -251,6 +254,7 @@ export default function App() {
           onOpenMobileSidebar={() => setIsMobileOpen(true)}
           currentTitle={getSectionTitle(activeTab)}
           onQuickNewSale={handleQuickNewSale}
+          onOpenGuide={() => setActiveTab('guide')}
           currentUserRole={currentUserRole}
           onRoleChange={setCurrentUserRole}
         />
@@ -395,6 +399,14 @@ export default function App() {
               settings={currentSettings}
               onRefresh={loadData}
               canEdit={canEditSettings}
+            />
+          )}
+
+          {activeTab === 'guide' && (
+            <UserGuideView
+              currentUserRole={currentUserRole}
+              onNavigateTab={setActiveTab}
+              settings={currentSettings}
             />
           )}
         </main>

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Wallet, Plus, Search, Filter, Download, Printer, CreditCard, ArrowDownRight, ArrowUpRight, AlertTriangle, X } from 'lucide-react';
+import { Wallet, Plus, Search, Filter, Download, Printer, CreditCard, ArrowDownRight, ArrowUpRight, AlertTriangle, X, Trash2 } from 'lucide-react';
 import { Payment, CashTransaction, Invoice, Customer, CompanySettings } from '../types';
 import { formatFCFA, formatDateFr, formatDateTimeFr } from '../utils/formatters';
 import { generatePaymentReceiptPDF } from '../utils/pdfGenerator';
 import { exportToCSV } from '../utils/exportUtils';
 import { api } from '../services/api';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 interface CashViewProps {
   payments: Payment[];
@@ -14,6 +15,7 @@ interface CashViewProps {
   settings: CompanySettings;
   onRefresh: () => void;
   canEdit: boolean;
+  isAdmin?: boolean;
   preselectedInvoice?: Invoice | null;
   onClearPreselected?: () => void;
 }
@@ -26,12 +28,29 @@ export const CashView: React.FC<CashViewProps> = ({
   settings,
   onRefresh,
   canEdit,
+  isAdmin = false,
   preselectedInvoice,
   onClearPreselected,
 }) => {
   const [activeTab, setActiveTab] = useState<'receipts' | 'transactions'>('receipts');
   const [searchTerm, setSearchTerm] = useState('');
   const [methodFilter, setMethodFilter] = useState('ALL');
+  const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeletePayment = async () => {
+    if (!paymentToDelete) return;
+    try {
+      setIsDeleting(true);
+      await api.deletePayment(paymentToDelete.id);
+      setPaymentToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression du paiement');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Modal payment
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -331,14 +350,25 @@ export const CashView: React.FC<CashViewProps> = ({
                       </td>
                       <td className="py-3 px-4 text-slate-600 text-[11px]">{p.created_by}</td>
                       <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => generatePaymentReceiptPDF(p, settings)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors"
-                          title="Imprimer Reçu de Caisse A5"
-                        >
-                          <Printer className="w-3.5 h-3.5 text-slate-600" />
-                          <span>Reçu A5</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => generatePaymentReceiptPDF(p, settings)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors"
+                            title="Imprimer Reçu de Caisse A5"
+                          >
+                            <Printer className="w-3.5 h-3.5 text-slate-600" />
+                            <span>Reçu A5</span>
+                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => setPaymentToDelete(p)}
+                              title="Supprimer ce versement (Admin)"
+                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -541,6 +571,17 @@ export const CashView: React.FC<CashViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal (Admin Only) */}
+      <ConfirmDeleteModal
+        isOpen={!!paymentToDelete}
+        onClose={() => setPaymentToDelete(null)}
+        onConfirm={handleDeletePayment}
+        title="Supprimer le règlement de caisse"
+        itemDescription={paymentToDelete ? `${paymentToDelete.payment_number} - ${paymentToDelete.customer_name} (+${formatFCFA(paymentToDelete.amount)})` : ''}
+        warningNote="La suppression de ce règlement de caisse diminuera le solde encaissé et rétablira le solde dû sur la facture concernée. Réservé à l'administrateur."
+        isDeleting={isDeleting}
+      />
     </div>
   );
 };

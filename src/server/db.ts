@@ -321,14 +321,14 @@ export function initDatabase() {
         low_stock_threshold, timezone, footer_note, bank_details, mobile_money_details
       ) VALUES (
         1,
-        'DÉPÔT CENTRAL DE CIMENT DU BASSIN',
+        'CIMENPRO',
         'Vente en gros et détail de ciment certifié',
         '',
         'Avenue de l''Indépendance, Rond-point Moungali',
         'Brazzaville',
         'République du Congo',
         '+242 06 654 32 10 / +242 05 512 88 99',
-        'contact@depotciment-congo.cg',
+        'contact@cimenpro.cg',
         'M2023110900452',
         'FCFA',
         'DEV-',
@@ -342,6 +342,12 @@ export function initDatabase() {
         'Banque BGFI Congo - N° Compte: 30004 00120 12345678901 45',
         'MTN MoMo: +242 06 654 32 10 / Airtel Money: +242 05 512 88 99'
       )
+    `).run();
+  } else {
+    db.prepare(`
+      UPDATE company_settings 
+      SET company_name = 'CIMENPRO', email = 'contact@cimenpro.cg'
+      WHERE company_name LIKE '%DÉPÔT CENTRAL%' OR company_name = '' OR company_name IS NULL
     `).run();
   }
 

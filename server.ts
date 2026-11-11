@@ -96,6 +96,23 @@ app.post('/api/users', (req: Request, res: Response) => {
   }
 });
 
+app.delete('/api/users/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as any;
+    if (!user) return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    const adminCount = (db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").get() as any).count;
+    if (user.role === 'admin' && adminCount <= 1) {
+      return res.status(400).json({ error: 'Impossible de supprimer le seul administrateur restant du système' });
+    }
+    db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    logAudit('admin', 'Administrateur', 'SUPPRESSION_UTILISATEUR', 'users', id, { name: user.name, email: user.email });
+    res.json({ success: true, message: `Utilisateur ${user.name} supprimé` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ----------------------------------------------------
 // 3. PRODUCTS & STOCK
 // ----------------------------------------------------
@@ -213,6 +230,44 @@ app.get('/api/stock/movements', (req: Request, res: Response) => {
   }
 });
 
+app.delete('/api/products/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const prod = db.prepare('SELECT * FROM products WHERE id = ?').get(id) as any;
+    if (!prod) return res.status(404).json({ error: 'Produit non trouvé' });
+
+    db.transaction(() => {
+      db.prepare('DELETE FROM stock_movements WHERE product_id = ?').run(id);
+      db.prepare('DELETE FROM purchase_items WHERE product_id = ?').run(id);
+      db.prepare('DELETE FROM sale_items WHERE product_id = ?').run(id);
+      db.prepare('DELETE FROM invoice_items WHERE product_id = ?').run(id);
+      db.prepare('DELETE FROM quotation_items WHERE product_id = ?').run(id);
+      db.prepare('DELETE FROM delivery_items WHERE product_id = ?').run(id);
+      db.prepare('DELETE FROM inventory_adjustments WHERE product_id = ?').run(id);
+      db.prepare('DELETE FROM products WHERE id = ?').run(id);
+      logAudit('admin', 'Administrateur', 'SUPPRESSION_PRODUIT', 'products', id, { name: prod.name, code: prod.code });
+    })();
+
+    res.json({ success: true, message: `Produit ${prod.name} supprimé avec succès` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/stock/movements/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const mov = db.prepare('SELECT * FROM stock_movements WHERE id = ?').get(id) as any;
+    if (!mov) return res.status(404).json({ error: 'Mouvement de stock non trouvé' });
+
+    db.prepare('DELETE FROM stock_movements WHERE id = ?').run(id);
+    logAudit('admin', 'Administrateur', 'SUPPRESSION_MOUVEMENT_STOCK', 'stock_movements', id, { type: mov.movement_type });
+    res.json({ success: true, message: 'Mouvement de stock supprimé' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ----------------------------------------------------
 // 4. SUPPLIERS & CUSTOMERS
 // ----------------------------------------------------
@@ -273,6 +328,32 @@ app.post('/api/customers', (req: Request, res: Response) => {
     `).run(id, name, phone, address, customer_type || 'particulier', credit_limit || 0, now);
     const created = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
     res.status(201).json(created);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/suppliers/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const sup = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(id) as any;
+    if (!sup) return res.status(404).json({ error: 'Fournisseur non trouvé' });
+    db.prepare('DELETE FROM suppliers WHERE id = ?').run(id);
+    logAudit('admin', 'Administrateur', 'SUPPRESSION_FOURNISSEUR', 'suppliers', id, { name: sup.name });
+    res.json({ success: true, message: `Fournisseur ${sup.name} supprimé` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/customers/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const cust = db.prepare('SELECT * FROM customers WHERE id = ?').get(id) as any;
+    if (!cust) return res.status(404).json({ error: 'Client non trouvé' });
+    db.prepare('DELETE FROM customers WHERE id = ?').run(id);
+    logAudit('admin', 'Administrateur', 'SUPPRESSION_CLIENT', 'customers', id, { name: cust.name });
+    res.json({ success: true, message: `Client ${cust.name} supprimé` });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -366,6 +447,33 @@ app.post('/api/purchases', (req: Request, res: Response) => {
 
     logAudit(created_by || 'admin', created_by || 'Gestionnaire', 'APPROVISIONNEMENT', 'purchases', id, { purchase_number, total_amount });
     res.status(201).json({ id, purchase_number, total_amount });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/purchases/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pur = db.prepare('SELECT * FROM purchases WHERE id = ?').get(id) as any;
+    if (!pur) return res.status(404).json({ error: 'Réception non trouvée' });
+
+    db.transaction(() => {
+      const items = db.prepare('SELECT * FROM purchase_items WHERE purchase_id = ?').all(id) as any[];
+      for (const item of items) {
+        db.prepare(`
+          UPDATE products 
+          SET current_stock = MAX(0, current_stock - ?), updated_at = ?
+          WHERE id = ?
+        `).run(item.quantity, new Date().toISOString(), item.product_id);
+      }
+      db.prepare("DELETE FROM stock_movements WHERE reference_id = ? OR (reference_type = 'purchase' AND reference_id = ?)").run(pur.purchase_number, pur.purchase_number);
+      db.prepare('DELETE FROM purchase_items WHERE purchase_id = ?').run(id);
+      db.prepare('DELETE FROM purchases WHERE id = ?').run(id);
+      logAudit('admin', 'Administrateur', 'SUPPRESSION_ACHAT', 'purchases', id, { purchase_number: pur.purchase_number });
+    })();
+
+    res.json({ success: true, message: `Réception ${pur.purchase_number} supprimée et stock ajusté` });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -554,6 +662,68 @@ app.post('/api/sales', (req: Request, res: Response) => {
   }
 });
 
+app.delete('/api/sales/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(id) as any;
+    if (!sale) return res.status(404).json({ error: 'Vente non trouvée' });
+
+    db.transaction(() => {
+      const items = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(id) as any[];
+      for (const item of items) {
+        if (sale.delivery_mode === 'immediat') {
+          db.prepare(`
+            UPDATE products 
+            SET current_stock = current_stock + ?, updated_at = ?
+            WHERE id = ?
+          `).run(item.quantity, new Date().toISOString(), item.product_id);
+        } else {
+          const remainingToDeliver = Math.max(0, item.quantity - (item.delivered_quantity || 0));
+          db.prepare(`
+            UPDATE products 
+            SET reserved_stock = MAX(0, reserved_stock - ?),
+                current_stock = current_stock + ?,
+                updated_at = ?
+            WHERE id = ?
+          `).run(remainingToDeliver, item.delivered_quantity || 0, new Date().toISOString(), item.product_id);
+        }
+      }
+
+      // Delete invoices and invoice items
+      const invoices = db.prepare('SELECT id FROM invoices WHERE sale_id = ?').all(id) as any[];
+      for (const inv of invoices) {
+        db.prepare('DELETE FROM payments WHERE invoice_id = ?').run(inv.id);
+        db.prepare('DELETE FROM invoice_items WHERE invoice_id = ?').run(inv.id);
+      }
+      db.prepare('DELETE FROM invoices WHERE sale_id = ?').run(id);
+
+      // Delete payments
+      db.prepare('DELETE FROM payments WHERE sale_id = ?').run(id);
+      db.prepare("DELETE FROM cash_transactions WHERE reference_id = ? OR notes LIKE ?").run(id, `%${sale.sale_number}%`);
+
+      // Delete deliveries
+      const dels = db.prepare('SELECT id FROM deliveries WHERE sale_id = ?').all(id) as any[];
+      for (const d of dels) {
+        db.prepare('DELETE FROM delivery_items WHERE delivery_id = ?').run(d.id);
+      }
+      db.prepare('DELETE FROM deliveries WHERE sale_id = ?').run(id);
+
+      // Delete stock movements
+      db.prepare("DELETE FROM stock_movements WHERE reference_id = ? OR reason LIKE ?").run(sale.sale_number, `%${sale.sale_number}%`);
+
+      // Delete sale items & sale
+      db.prepare('DELETE FROM sale_items WHERE sale_id = ?').run(id);
+      db.prepare('DELETE FROM sales WHERE id = ?').run(id);
+
+      logAudit('admin', 'Administrateur', 'SUPPRESSION_VENTE', 'sales', id, { sale_number: sale.sale_number });
+    })();
+
+    res.json({ success: true, message: `Vente ${sale.sale_number} supprimée et stocks/comptabilité restaurés` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ----------------------------------------------------
 // 7. DELIVERIES (GESTION DES LIVRAISONS EFFECTIVES)
 // ----------------------------------------------------
@@ -658,6 +828,49 @@ app.post('/api/deliveries/:id/execute', (req: Request, res: Response) => {
 
     logAudit(created_by, created_by, 'LIVRAISON_EFFECTUEE', 'deliveries', id, { delivery_number: delivery.delivery_number });
     res.json({ success: true, message: 'Livraison enregistrée avec succès.' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/deliveries/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const del = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(id) as any;
+    if (!del) return res.status(404).json({ error: 'Livraison non trouvée' });
+
+    db.transaction(() => {
+      const items = db.prepare('SELECT * FROM delivery_items WHERE delivery_id = ?').all(id) as any[];
+      for (const item of items) {
+        if (item.quantity_delivered > 0) {
+          db.prepare(`
+            UPDATE products 
+            SET current_stock = current_stock + ?, reserved_stock = reserved_stock + ?, updated_at = ?
+            WHERE id = ?
+          `).run(item.quantity_delivered, item.quantity_delivered, new Date().toISOString(), item.product_id);
+        }
+
+        if (del.sale_id && item.quantity_delivered > 0) {
+          db.prepare(`
+            UPDATE sale_items
+            SET delivered_quantity = MAX(0, delivered_quantity - ?)
+            WHERE sale_id = ? AND product_id = ?
+          `).run(item.quantity_delivered, del.sale_id, item.product_id);
+        }
+      }
+
+      db.prepare("DELETE FROM stock_movements WHERE reference_id = ? OR (reference_type = 'delivery' AND reference_id = ?)").run(del.delivery_number, del.delivery_number);
+      db.prepare('DELETE FROM delivery_items WHERE delivery_id = ?').run(id);
+      db.prepare('DELETE FROM deliveries WHERE id = ?').run(id);
+
+      if (del.sale_id) {
+        db.prepare("UPDATE sales SET delivery_status = 'en_attente' WHERE id = ?").run(del.sale_id);
+      }
+
+      logAudit('admin', 'Administrateur', 'SUPPRESSION_LIVRAISON', 'deliveries', id, { delivery_number: del.delivery_number });
+    })();
+
+    res.json({ success: true, message: `Bon de livraison ${del.delivery_number} supprimé` });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -867,6 +1080,24 @@ app.post('/api/quotations/:id/convert-to-sale', (req: Request, res: Response) =>
   }
 });
 
+app.delete('/api/quotations/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const q = db.prepare('SELECT * FROM quotations WHERE id = ?').get(id) as any;
+    if (!q) return res.status(404).json({ error: 'Devis non trouvé' });
+
+    db.transaction(() => {
+      db.prepare('DELETE FROM quotation_items WHERE quotation_id = ?').run(id);
+      db.prepare('DELETE FROM quotations WHERE id = ?').run(id);
+      logAudit('admin', 'Administrateur', 'SUPPRESSION_DEVIS', 'quotations', id, { quote_number: q.quote_number });
+    })();
+
+    res.json({ success: true, message: `Devis ${q.quote_number} supprimé` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ----------------------------------------------------
 // 9. INVOICES (FACTURES)
 // ----------------------------------------------------
@@ -906,6 +1137,25 @@ app.post('/api/invoices/:id/cancel', (req: Request, res: Response) => {
     db.prepare("UPDATE invoices SET status = 'annulee', cancellation_reason = ? WHERE id = ?").run(reason, id);
     logAudit(user_name, user_name, 'ANNULATION_FACTURE', 'invoices', id, { reason });
     res.json({ success: true, message: 'Facture annulée avec traçabilité.' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/invoices/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const inv = db.prepare('SELECT * FROM invoices WHERE id = ?').get(id) as any;
+    if (!inv) return res.status(404).json({ error: 'Facture non trouvée' });
+
+    db.transaction(() => {
+      db.prepare('DELETE FROM payments WHERE invoice_id = ?').run(id);
+      db.prepare('DELETE FROM invoice_items WHERE invoice_id = ?').run(id);
+      db.prepare('DELETE FROM invoices WHERE id = ?').run(id);
+      logAudit('admin', 'Administrateur', 'SUPPRESSION_FACTURE', 'invoices', id, { invoice_number: inv.invoice_number });
+    })();
+
+    res.json({ success: true, message: `Facture ${inv.invoice_number} supprimée` });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -986,6 +1236,52 @@ app.post('/api/payments', (req: Request, res: Response) => {
   }
 });
 
+app.delete('/api/payments/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const pay = db.prepare('SELECT * FROM payments WHERE id = ?').get(id) as any;
+    if (!pay) return res.status(404).json({ error: 'Règlement non trouvé' });
+
+    db.transaction(() => {
+      if (pay.invoice_id) {
+        const inv = db.prepare('SELECT * FROM invoices WHERE id = ?').get(pay.invoice_id) as any;
+        if (inv) {
+          const newPaid = Math.max(0, inv.paid_amount - pay.amount);
+          const newRemaining = inv.total_amount - newPaid;
+          const newStatus = newPaid <= 0 ? 'impayee' : (newPaid < inv.total_amount ? 'partielle' : 'payee');
+          db.prepare(`
+            UPDATE invoices
+            SET paid_amount = ?, remaining_amount = ?, payment_status = ?
+            WHERE id = ?
+          `).run(newPaid, newRemaining, newStatus, pay.invoice_id);
+        }
+      }
+
+      if (pay.sale_id) {
+        const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(pay.sale_id) as any;
+        if (sale) {
+          const newPaid = Math.max(0, sale.paid_amount - pay.amount);
+          const newRemaining = sale.total_amount - newPaid;
+          const newStatus = newPaid <= 0 ? 'impayee' : (newPaid < sale.total_amount ? 'partielle' : 'payee');
+          db.prepare(`
+            UPDATE sales
+            SET paid_amount = ?, remaining_amount = ?, payment_status = ?
+            WHERE id = ?
+          `).run(newPaid, newRemaining, newStatus, pay.sale_id);
+        }
+      }
+
+      db.prepare("DELETE FROM cash_transactions WHERE reference_id = ? OR notes LIKE ?").run(id, `%${pay.payment_number}%`);
+      db.prepare('DELETE FROM payments WHERE id = ?').run(id);
+      logAudit('admin', 'Administrateur', 'SUPPRESSION_PAIEMENT', 'payments', id, { payment_number: pay.payment_number, amount: pay.amount });
+    })();
+
+    res.json({ success: true, message: `Règlement ${pay.payment_number} supprimé et solde recalculé` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ----------------------------------------------------
 // 11. EXPENSES (DÉPENSES)
 // ----------------------------------------------------
@@ -1025,6 +1321,24 @@ app.post('/api/expenses', (req: Request, res: Response) => {
 
     logAudit(created_by, created_by, 'DEPENSE', 'expenses', id, { expense_number, amount: expAmount });
     res.status(201).json({ id, expense_number, amount: expAmount });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/expenses/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const exp = db.prepare('SELECT * FROM expenses WHERE id = ?').get(id) as any;
+    if (!exp) return res.status(404).json({ error: 'Dépense non trouvée' });
+
+    db.transaction(() => {
+      db.prepare("DELETE FROM cash_transactions WHERE reference_id = ? OR notes LIKE ?").run(id, `%${exp.expense_number}%`);
+      db.prepare('DELETE FROM expenses WHERE id = ?').run(id);
+      logAudit('admin', 'Administrateur', 'SUPPRESSION_DEPENSE', 'expenses', id, { expense_number: exp.expense_number, amount: exp.amount });
+    })();
+
+    res.json({ success: true, message: `Dépense ${exp.expense_number} supprimée` });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -1114,6 +1428,31 @@ app.post('/api/inventory/adjustments', (req: Request, res: Response) => {
 
     logAudit(created_by, created_by, 'AJUSTEMENT_INVENTAIRE', 'products', product_id, { adjustment_number, discrepancy });
     res.status(201).json({ id, adjustment_number, discrepancy, physical_stock: physStock });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/inventory/adjustments/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const adj = db.prepare('SELECT * FROM inventory_adjustments WHERE id = ?').get(id) as any;
+    if (!adj) return res.status(404).json({ error: 'Ajustement non trouvé' });
+
+    db.transaction(() => {
+      // Reverse discrepancy in product current_stock
+      db.prepare(`
+        UPDATE products 
+        SET current_stock = MAX(0, current_stock - ?), updated_at = ?
+        WHERE id = ?
+      `).run(adj.discrepancy, new Date().toISOString(), adj.product_id);
+
+      db.prepare("DELETE FROM stock_movements WHERE reference_id = ? OR (reference_type = 'inventory' AND reference_id = ?)").run(adj.adjustment_number, adj.adjustment_number);
+      db.prepare('DELETE FROM inventory_adjustments WHERE id = ?').run(id);
+      logAudit('admin', 'Administrateur', 'SUPPRESSION_AJUSTEMENT_INVENTAIRE', 'inventory_adjustments', id, { adjustment_number: adj.adjustment_number });
+    })();
+
+    res.json({ success: true, message: `Régularisation ${adj.adjustment_number} supprimée` });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

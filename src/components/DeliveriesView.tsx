@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
-import { Send, Search, Filter, Download, Truck, Printer, CheckCircle, Clock, AlertTriangle, X } from 'lucide-react';
+import { Send, Search, Filter, Download, Truck, Printer, CheckCircle, Clock, AlertTriangle, X, Trash2 } from 'lucide-react';
 import { Delivery, CompanySettings } from '../types';
 import { formatDateFr, formatBags, getDeliveryStatusLabel } from '../utils/formatters';
 import { generateDeliverySlipPDF } from '../utils/pdfGenerator';
 import { exportToCSV } from '../utils/exportUtils';
 import { api } from '../services/api';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 interface DeliveriesViewProps {
   deliveries: Delivery[];
   settings: CompanySettings;
   onRefresh: () => void;
   canEdit: boolean;
+  isAdmin?: boolean;
 }
 
 export const DeliveriesView: React.FC<DeliveriesViewProps> = ({
@@ -18,9 +20,26 @@ export const DeliveriesView: React.FC<DeliveriesViewProps> = ({
   settings,
   onRefresh,
   canEdit,
+  isAdmin = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [deliveryToDelete, setDeliveryToDelete] = useState<Delivery | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteDelivery = async () => {
+    if (!deliveryToDelete) return;
+    try {
+      setIsDeleting(true);
+      await api.deleteDelivery(deliveryToDelete.id);
+      setDeliveryToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression de la livraison');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Execution modal
   const [executingDelivery, setExecutingDelivery] = useState<Delivery | null>(null);
@@ -244,6 +263,15 @@ export const DeliveriesView: React.FC<DeliveriesViewProps> = ({
                           >
                             <Printer className="w-3.5 h-3.5" />
                           </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => setDeliveryToDelete(d)}
+                              title="Supprimer ce bon de livraison (Admin)"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -379,6 +407,17 @@ export const DeliveriesView: React.FC<DeliveriesViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal (Admin Only) */}
+      <ConfirmDeleteModal
+        isOpen={!!deliveryToDelete}
+        onClose={() => setDeliveryToDelete(null)}
+        onConfirm={handleDeleteDelivery}
+        title="Supprimer le bon de livraison"
+        itemDescription={deliveryToDelete ? `${deliveryToDelete.delivery_number} - ${deliveryToDelete.customer_name} (${deliveryToDelete.delivery_address})` : ''}
+        warningNote="La suppression de ce bon de livraison réintégrera les sacs livrés dans le stock physique et rétablira le solde à livrer. Réservé à l'administrateur."
+        isDeleting={isDeleting}
+      />
     </div>
   );
 };

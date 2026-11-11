@@ -18,6 +18,7 @@ import { formatFCFA, formatBags, formatDateFr, getPaymentStatusLabel, getDeliver
 import { generateInvoicePDF, generatePaymentReceiptPDF } from '../utils/pdfGenerator';
 import { exportToCSV } from '../utils/exportUtils';
 import { api } from '../services/api';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 interface SalesViewProps {
   sales: Sale[];
@@ -27,6 +28,7 @@ interface SalesViewProps {
   invoices: Invoice[];
   onRefresh: () => void;
   canEdit: boolean;
+  isAdmin?: boolean;
 }
 
 export const SalesView: React.FC<SalesViewProps> = ({
@@ -37,12 +39,29 @@ export const SalesView: React.FC<SalesViewProps> = ({
   invoices,
   onRefresh,
   canEdit,
+  isAdmin = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  const handleDeleteSale = async () => {
+    if (!saleToDelete) return;
+    try {
+      setIsDeleting(true);
+      await api.deleteSale(saleToDelete.id);
+      setSaleToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression de la vente');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Form states
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -396,14 +415,25 @@ export const SalesView: React.FC<SalesViewProps> = ({
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => handlePrintInvoice(s)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors"
-                          title="Imprimer / Télécharger Facture PDF"
-                        >
-                          <Printer className="w-3.5 h-3.5 text-slate-600" />
-                          <span>PDF</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => handlePrintInvoice(s)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors"
+                            title="Imprimer / Télécharger Facture PDF"
+                          >
+                            <Printer className="w-3.5 h-3.5 text-slate-600" />
+                            <span>PDF</span>
+                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => setSaleToDelete(s)}
+                              title="Supprimer cette vente (Admin)"
+                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -711,6 +741,17 @@ export const SalesView: React.FC<SalesViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal (Admin Only) */}
+      <ConfirmDeleteModal
+        isOpen={!!saleToDelete}
+        onClose={() => setSaleToDelete(null)}
+        onConfirm={handleDeleteSale}
+        title="Supprimer la vente"
+        itemDescription={saleToDelete ? `${saleToDelete.sale_number} - ${saleToDelete.customer_name} (${formatFCFA(saleToDelete.total_amount)})` : ''}
+        warningNote="La suppression de cette vente réintégrera les sacs de ciment dans le stock physique (ou libérera la réservation) et annulera les factures et règlements associés. Réservé à l'administrateur."
+        isDeleting={isDeleting}
+      />
     </div>
   );
 };

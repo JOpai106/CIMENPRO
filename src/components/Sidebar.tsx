@@ -15,6 +15,7 @@ import {
   BarChart3,
   ShieldCheck,
   Settings,
+  BookOpen,
   X,
   AlertTriangle,
 } from 'lucide-react';
@@ -35,7 +36,8 @@ export type NavTab =
   | 'inventory'
   | 'reports'
   | 'users'
-  | 'settings';
+  | 'settings'
+  | 'guide';
 
 interface SidebarProps {
   activeTab: NavTab;
@@ -56,8 +58,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   lowStockCount = 0,
   unpaidInvoicesCount = 0,
 }) => {
-  // Role-based visibility
+  // Role-based visibility: guide is accessible to ALL roles
   const canAccess = (tab: NavTab): boolean => {
+    if (tab === 'guide') return true;
     if (currentUserRole === 'admin' || currentUserRole === 'responsable') return true;
     if (currentUserRole === 'gestionnaire_stock') {
       return ['dashboard', 'products', 'stock_movements', 'purchases', 'deliveries', 'inventory', 'reports'].includes(tab);
@@ -87,6 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'reports', label: 'Rapports & Bilan', icon: BarChart3 },
     { id: 'users', label: 'Utilisateurs & Droits', icon: ShieldCheck },
     { id: 'settings', label: 'Paramètres du Dépôt', icon: Settings },
+    { id: 'guide', label: "Manuel d'utilisation", icon: BookOpen },
   ];
 
   return (
@@ -112,8 +116,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               C
             </div>
             <div>
-              <h1 className="font-bold text-white text-sm tracking-tight leading-tight">DÉPÔT CIMENT</h1>
-              <p className="text-[11px] text-slate-400 font-medium">Brazzaville · Congo</p>
+              <h1 className="font-bold text-white text-sm tracking-tight leading-tight">CIMENPRO</h1>
+              <p className="text-[11px] text-orange-400/90 font-medium tracking-wide">Gestion de Ciment</p>
             </div>
           </div>
           <button

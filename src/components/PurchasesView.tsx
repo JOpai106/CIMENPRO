@@ -5,6 +5,7 @@ import { formatFCFA, formatBags, formatDateFr } from '../utils/formatters';
 import { generatePurchaseReceiptPDF } from '../utils/pdfGenerator';
 import { exportToCSV } from '../utils/exportUtils';
 import { api } from '../services/api';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 interface PurchasesViewProps {
   purchases: Purchase[];
@@ -13,6 +14,7 @@ interface PurchasesViewProps {
   settings: CompanySettings;
   onRefresh: () => void;
   canEdit: boolean;
+  isAdmin?: boolean;
 }
 
 export const PurchasesView: React.FC<PurchasesViewProps> = ({
@@ -22,11 +24,28 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
   settings,
   onRefresh,
   canEdit,
+  isAdmin = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [purchaseToDelete, setPurchaseToDelete] = useState<Purchase | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  const handleDeletePurchase = async () => {
+    if (!purchaseToDelete) return;
+    try {
+      setIsDeleting(true);
+      await api.deletePurchase(purchaseToDelete.id);
+      setPurchaseToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Form fields
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -225,14 +244,25 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
                       </td>
                       <td className="py-3 px-4 text-slate-600 text-[11px]">{p.created_by}</td>
                       <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => generatePurchaseReceiptPDF(p, settings)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors"
-                          title="Télécharger Bon de Réception PDF"
-                        >
-                          <Printer className="w-3.5 h-3.5 text-slate-600" />
-                          <span>PDF</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => generatePurchaseReceiptPDF(p, settings)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors"
+                            title="Télécharger Bon de Réception PDF"
+                          >
+                            <Printer className="w-3.5 h-3.5 text-slate-600" />
+                            <span>PDF</span>
+                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => setPurchaseToDelete(p)}
+                              title="Supprimer cette réception (Admin)"
+                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -444,6 +474,17 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal (Admin Only) */}
+      <ConfirmDeleteModal
+        isOpen={!!purchaseToDelete}
+        onClose={() => setPurchaseToDelete(null)}
+        onConfirm={handleDeletePurchase}
+        title="Supprimer la réception usine"
+        itemDescription={purchaseToDelete ? `${purchaseToDelete.purchase_number} - ${purchaseToDelete.supplier_name} (${formatFCFA(purchaseToDelete.total_amount)})` : ''}
+        warningNote="La suppression de ce bon de réception déduira les quantités correspondantes du stock physique disponible. Réservé à l'administrateur."
+        isDeleting={isDeleting}
+      />
     </div>
   );
 };

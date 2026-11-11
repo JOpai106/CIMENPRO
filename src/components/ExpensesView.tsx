@@ -1,23 +1,42 @@
 import React, { useState } from 'react';
-import { Receipt, Plus, Search, Filter, Download, AlertTriangle, X } from 'lucide-react';
+import { Receipt, Plus, Search, Filter, Download, AlertTriangle, X, Trash2 } from 'lucide-react';
 import { Expense, ExpenseCategory } from '../types';
 import { formatFCFA, formatDateFr } from '../utils/formatters';
 import { exportToCSV } from '../utils/exportUtils';
 import { api } from '../services/api';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 interface ExpensesViewProps {
   expenses: Expense[];
   onRefresh: () => void;
   canEdit: boolean;
+  isAdmin?: boolean;
 }
 
 export const ExpensesView: React.FC<ExpensesViewProps> = ({
   expenses,
   onRefresh,
   canEdit,
+  isAdmin = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteExpense = async () => {
+    if (!expenseToDelete) return;
+    try {
+      setIsDeleting(true);
+      await api.deleteExpense(expenseToDelete.id);
+      setExpenseToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression de la dépense');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -194,12 +213,13 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                 <th className="py-3 px-4">Justificatif</th>
                 <th className="py-3 px-4 text-right">Montant Décaissé</th>
                 <th className="py-3 px-4">Approuvé par</th>
+                {isAdmin && <th className="py-3 px-4 text-right">Action</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
+                  <td colSpan={isAdmin ? 9 : 8} className="py-8 text-center text-slate-400">
                     Aucune dépense enregistrée.
                   </td>
                 </tr>
@@ -222,6 +242,17 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                       -{formatFCFA(e.amount)}
                     </td>
                     <td className="py-3 px-4 text-slate-500 text-[11px]">{e.approved_by}</td>
+                    {isAdmin && (
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          onClick={() => setExpenseToDelete(e)}
+                          title="Supprimer cette dépense (Admin)"
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -361,6 +392,17 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal (Admin Only) */}
+      <ConfirmDeleteModal
+        isOpen={!!expenseToDelete}
+        onClose={() => setExpenseToDelete(null)}
+        onConfirm={handleDeleteExpense}
+        title="Supprimer la dépense du dépôt"
+        itemDescription={expenseToDelete ? `${expenseToDelete.expense_number} - ${expenseToDelete.description} (-${formatFCFA(expenseToDelete.amount)})` : ''}
+        warningNote="La suppression de cette dépense réintégrera le montant décaissé dans le solde théorique de caisse. Réservé à l'administrateur."
+        isDeleting={isDeleting}
+      />
     </div>
   );
 };

@@ -11,17 +11,20 @@ import {
   X,
   Layers,
   CheckCircle,
+  Trash2,
 } from 'lucide-react';
 import { Product, Supplier, StockMovement } from '../types';
 import { formatFCFA, formatBags, formatDateFr } from '../utils/formatters';
 import { exportToCSV } from '../utils/exportUtils';
 import { api } from '../services/api';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 interface ProductsViewProps {
   products: Product[];
   suppliers: Supplier[];
   onRefresh: () => void;
   canEdit: boolean;
+  isAdmin?: boolean;
 }
 
 export const ProductsView: React.FC<ProductsViewProps> = ({
@@ -29,6 +32,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   suppliers,
   onRefresh,
   canEdit,
+  isAdmin = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('ALL');
@@ -38,10 +42,26 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [loadingMovements, setLoadingMovements] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  const handleDeleteProduct = async () => {
+    if (!productToDelete) return;
+    try {
+      setIsDeleting(true);
+      await api.deleteProduct(productToDelete.id);
+      setProductToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Form fields
   const [code, setCode] = useState('');
@@ -386,6 +406,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                           )}
+                          {isAdmin && (
+                            <button
+                              onClick={() => setProductToDelete(p)}
+                              title="Supprimer ce produit (Admin)"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -669,6 +698,17 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal (Admin Only) */}
+      <ConfirmDeleteModal
+        isOpen={!!productToDelete}
+        onClose={() => setProductToDelete(null)}
+        onConfirm={handleDeleteProduct}
+        title="Supprimer la référence de ciment"
+        itemDescription={productToDelete ? `${productToDelete.code} - ${productToDelete.name} (${productToDelete.current_stock} sacs en stock)` : ''}
+        warningNote="La suppression de ce produit supprimera la référence du catalogue et ses écritures de stock. Cette action est irréversible et réservée à l'administrateur."
+        isDeleting={isDeleting}
+      />
     </div>
   );
 };

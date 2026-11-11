@@ -14,6 +14,7 @@ import {
   ArrowDownRight,
   Clock,
   Sparkles,
+  BookOpen,
 } from 'lucide-react';
 import { DashboardStats } from '../types';
 import { formatFCFA, formatBags, formatDateFr } from '../utils/formatters';
@@ -52,12 +53,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="bg-slate-900 rounded-xl p-5 sm:p-6 text-white border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
         <div>
           <span className="text-orange-400 text-xs font-semibold uppercase tracking-wider">Aperçu Opérationnel</span>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight mt-1">Dépôt Central de Ciment</h2>
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight mt-1">CIMENPRO · Dépôt Central</h2>
           <p className="text-xs text-slate-300 mt-1 max-w-xl">
             Gestion en temps réel des stocks de sacs de ciment, encaissements comptant/Mobile Money, livraisons sur chantiers et créances clients.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            onClick={() => onNavigateTab('guide')}
+            className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 transition-colors flex items-center gap-1.5"
+            title="Consulter le Manuel d'utilisation de CIMENPRO"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-orange-400" />
+            Manuel d'utilisation
+          </button>
           <button
             onClick={onQuickNewPurchase}
             className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 transition-colors flex items-center gap-1.5"

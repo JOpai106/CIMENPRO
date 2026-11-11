@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { Users, Truck, Plus, Search, Filter, Download, AlertTriangle, X, Phone, MapPin, Building } from 'lucide-react';
+import { Users, Truck, Plus, Search, Filter, Download, AlertTriangle, X, Phone, MapPin, Building, Trash2 } from 'lucide-react';
 import { Customer, Supplier, CustomerType } from '../types';
 import { formatFCFA, formatDateFr } from '../utils/formatters';
 import { exportToCSV } from '../utils/exportUtils';
 import { api } from '../services/api';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 interface PartnersViewProps {
   customers: Customer[];
   suppliers: Supplier[];
   onRefresh: () => void;
   canEdit: boolean;
+  isAdmin?: boolean;
 }
 
 export const PartnersView: React.FC<PartnersViewProps> = ({
@@ -17,10 +19,42 @@ export const PartnersView: React.FC<PartnersViewProps> = ({
   suppliers,
   onRefresh,
   canEdit,
+  isAdmin = false,
 }) => {
   const [activeTab, setActiveTab] = useState<'customers' | 'suppliers'>('customers');
   const [searchTerm, setSearchTerm] = useState('');
   const [customerTypeFilter, setCustomerTypeFilter] = useState('ALL');
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+  const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteCustomer = async () => {
+    if (!customerToDelete) return;
+    try {
+      setIsDeleting(true);
+      await api.deleteCustomer(customerToDelete.id);
+      setCustomerToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression du client');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteSupplier = async () => {
+    if (!supplierToDelete) return;
+    try {
+      setIsDeleting(true);
+      await api.deleteSupplier(supplierToDelete.id);
+      setSupplierToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression du fournisseur');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Customer Modal
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
@@ -266,12 +300,13 @@ export const PartnersView: React.FC<PartnersViewProps> = ({
                   <th className="py-3 px-4 text-right">Total Facturé</th>
                   <th className="py-3 px-4 text-right">Total Réglé</th>
                   <th className="py-3 px-4 text-right">Solde Dû (Créance)</th>
+                  {isAdmin && <th className="py-3 px-4 text-right">Action</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-400">
+                    <td colSpan={isAdmin ? 8 : 7} className="py-8 text-center text-slate-400">
                       Aucun client trouvé.
                     </td>
                   </tr>
@@ -304,6 +339,17 @@ export const PartnersView: React.FC<PartnersViewProps> = ({
                           <span className="text-slate-400">0 FCFA</span>
                         )}
                       </td>
+                      {isAdmin && (
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={() => setCustomerToDelete(c)}
+                            title="Supprimer ce client (Admin)"
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
@@ -324,12 +370,13 @@ export const PartnersView: React.FC<PartnersViewProps> = ({
                   <th className="py-3 px-4">Coordonnées</th>
                   <th className="py-3 px-4">Contact Référent</th>
                   <th className="py-3 px-4 text-right">Volume Achat Cumulé</th>
+                  {isAdmin && <th className="py-3 px-4 text-right">Action</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredSuppliers.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-8 text-center text-slate-400">
+                    <td colSpan={isAdmin ? 5 : 4} className="py-8 text-center text-slate-400">
                       Aucun fournisseur trouvé.
                     </td>
                   </tr>
@@ -348,6 +395,17 @@ export const PartnersView: React.FC<PartnersViewProps> = ({
                       <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 text-sm">
                         {formatFCFA(s.total_purchases || 0)}
                       </td>
+                      {isAdmin && (
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={() => setSupplierToDelete(s)}
+                            title="Supprimer ce fournisseur (Admin)"
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
@@ -542,6 +600,28 @@ export const PartnersView: React.FC<PartnersViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal for Customer (Admin Only) */}
+      <ConfirmDeleteModal
+        isOpen={!!customerToDelete}
+        onClose={() => setCustomerToDelete(null)}
+        onConfirm={handleDeleteCustomer}
+        title="Supprimer la fiche client"
+        itemDescription={customerToDelete ? `${customerToDelete.name} (${customerToDelete.phone})` : ''}
+        warningNote="La suppression de ce client effacera ses coordonnées de l'annuaire. Réservé à l'administrateur."
+        isDeleting={isDeleting}
+      />
+
+      {/* Delete Confirmation Modal for Supplier (Admin Only) */}
+      <ConfirmDeleteModal
+        isOpen={!!supplierToDelete}
+        onClose={() => setSupplierToDelete(null)}
+        onConfirm={handleDeleteSupplier}
+        title="Supprimer la fiche fournisseur"
+        itemDescription={supplierToDelete ? `${supplierToDelete.name} (${supplierToDelete.phone})` : ''}
+        warningNote="La suppression de ce fournisseur effacera la fiche usine/partenaire. Réservé à l'administrateur."
+        isDeleting={isDeleting}
+      />
     </div>
   );
 };

@@ -471,3 +471,146 @@ export function generatePaymentReceiptPDF(payment: Payment, settings: CompanySet
 
   doc.save(`${payment.payment_number}.pdf`);
 }
+
+/**
+ * Génère le Manuel d'Utilisation Officiel CIMENPRO en PDF
+ */
+export function exportUserGuidePDF(settings: CompanySettings) {
+  const doc = new jsPDF();
+  const pageHeight = doc.internal.pageSize.height;
+
+  // Header band
+  doc.setFillColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+  doc.rect(0, 0, 210, 32, 'F');
+
+  doc.setFillColor(ACCENT_COLOR[0], ACCENT_COLOR[1], ACCENT_COLOR[2]);
+  doc.rect(0, 32, 210, 2.5, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text(settings.company_name.toUpperCase(), 14, 15);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text('MANUEL D\'UTILISATION & GUIDE OPÉRATIONNEL DES PROCÉDURES DU DÉPÔT', 14, 23);
+  doc.setFontSize(8);
+  doc.text(`${settings.city}, ${settings.country} · Tél: ${settings.phone} · Email: ${settings.email}`, 14, 28);
+
+  let y = 44;
+
+  doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text('1. PRINCIPES GÉNÉRAUX & GESTION EN SACS DE CIMENT', 14, y);
+
+  y += 6;
+  doc.setTextColor(40, 40, 40);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  const textP1 = [
+    '• Unité de gestion : Le sac unitaire (50 kg). 1 Tonne équivaut rigoureusement à 20 sacs.',
+    '• Devise & Fiscalité : Tous les montants sont en FCFA (XAF), gestion simplifiée sans TVA.',
+    '• Rôles & Accès : Chaque collaborateur accède uniquement aux fonctions correspondant à ses attributions.',
+  ];
+  textP1.forEach(line => {
+    doc.text(line, 14, y);
+    y += 5.5;
+  });
+
+  y += 4;
+  doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text('2. RÉCEPTION USINE & APPROVISIONNEMENT (MAGASINIER / GESTIONNAIRE STOCK)', 14, y);
+
+  y += 6;
+  doc.setTextColor(40, 40, 40);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  const textP2 = [
+    '• Contrôle physique : Vérifier le nombre de sacs réels et l\'absence de déchirures ou d\'humidité avant de signer le BL usine.',
+    '• Saisie CIMENPRO : Ouvrir Approvisionnements > Nouvelle Réception > Renseigner le fournisseur et la quantité exacte.',
+    '• Mise à jour : Le stock disponible augmente instantanément et le Coût Moyen Pondéré (CMP) est recalculé.',
+    '• Bon de Réception (BR) : Imprimer le document interne pour classement avec le bon du transporteur.',
+  ];
+  textP2.forEach(line => {
+    doc.text(line, 14, y);
+    y += 5.5;
+  });
+
+  y += 4;
+  doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text('3. VENTES COMPTOIR & LIVRAISONS SUR CHANTIERS (COMMERCIAL)', 14, y);
+
+  y += 6;
+  doc.setTextColor(40, 40, 40);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  const textP3 = [
+    '• Vente immédiate (Emporté) : Les sacs sont déduits du stock disponible en temps réel dès la validation.',
+    '• Vente avec livraison sur chantier : Les sacs sont placés en Stock Réservé pour bloquer la quantité vendue.',
+    '• Bons de Livraison (BL) : Émis à chaque rotation de camion. La déduction physique intervient au départ du camion.',
+    '• Devis : Un devis ne modifie pas le stock physique tant qu\'il n\'a pas été validé et converti.',
+  ];
+  textP3.forEach(line => {
+    doc.text(line, 14, y);
+    y += 5.5;
+  });
+
+  y += 4;
+  doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text('4. CAISSE, ENCAISSEMENTS & DÉPENSES (CAISSIÈRE)', 14, y);
+
+  y += 6;
+  doc.setTextColor(40, 40, 40);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  const textP4 = [
+    '• Modes acceptés : Espèces, Mobile Money (MTN MoMo / Airtel Money), Virement bancaire BGFI Congo.',
+    '• Sécurité Mobile Money : Exiger impérativement la confirmation SMS officielle sur le téléphone du dépôt.',
+    '• Reçu de caisse : Toujours remettre le reçu officiel imprimé au client.',
+    '• Dépenses : Enregistrer chaque décaissement (manutentionnaires/chargeurs, carburant, loyer) avec justificatif.',
+  ];
+  textP4.forEach(line => {
+    doc.text(line, 14, y);
+    y += 5.5;
+  });
+
+  y += 4;
+  doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text('5. INVENTAIRE PHYSIQUE & GESTION DES REBUTS', 14, y);
+
+  y += 6;
+  doc.setTextColor(40, 40, 40);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  const textP5 = [
+    '• Comptage régulier : Vérifier physiquement chaque travée de ciment (CIMAF, DANGOTE, SOCIMAT, etc.).',
+    '• Régularisation : Déclarer les écarts dans Inventaire > Régularisation (Avarie humidité, Rebut percé, Entrée de correction).',
+    '• Alertes seuils : Surveiller les alertes de stock minimum (moins de 150 sacs) pour déclencher les commandes usine.',
+  ];
+  textP5.forEach(line => {
+    doc.text(line, 14, y);
+    y += 5.5;
+  });
+
+  // Footer
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.5);
+  doc.line(14, pageHeight - 16, 196, pageHeight - 16);
+
+  doc.setFontSize(8);
+  doc.setTextColor(120, 120, 120);
+  doc.text(`Document officiel d\'exploitation · ${settings.company_name} · Brazzaville`, 14, pageHeight - 10);
+  doc.text('Page 1 / 1', 196, pageHeight - 10, { align: 'right' });
+
+  doc.save('Manuel_Utilisation_CIMENPRO.pdf');
+}
+
