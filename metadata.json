@@ -1,0 +1,6 @@
+{
+  "name": "Gestion Dépôt Ciment",
+  "description": "Logiciel professionnel de gestion commerciale, stocks, approvisionnements, livraisons, ventes, devis, facturation, caisse et rapports pour dépôts de ciment.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
